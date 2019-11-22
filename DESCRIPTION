@@ -13,3 +13,6 @@ Encoding: UTF-8
 LazyData: true
 URL: https://github.com/lbusett/firecci
 BugReports: https://github.com/lbusett/firecci/issues
+RoxygenNote: 6.1.1
+Imports: 
+    magrittr

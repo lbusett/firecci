@@ -1,0 +1,108 @@
+---
+title: "Report_sampling"
+author: "Lorenzo Busetto"
+date: "29/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+load("../data/plots/plots_16.RData")
+library(tmap)
+```
+
+# Report on processing for sampling L8 tessels
+
+This document is used to report results of processing focused on automatically
+sampling L8 tessels for fireCCI validation activities. 
+
+## Input data
+
+Data used are:
+
+- 2018 fireCCI total burnt area raster (0.25° spatial resolution)
+- L8 tesselation, with biome codification
+- Results of analysys of length of continuos L8 time series, with 16 days maximum 
+ "step" (Work by Matteo Sali). This dataset shows, for each L8 tessel, the maximum 
+ length of a 2018 time series of L8 images satisfying the following conditions: 
+ 
+    1. Maximum difference between consecutive dates below or equal to 16 days
+    2. Maximum cloudiness below 30%, for all images
+
+## Classification of tessels in High an Low fire intestity
+
+For each tessel, we first of all computed the total 2018 burnt area starting from 
+the fireCCI raster. 
+
+```{r map_totba, echo=FALSE, message=FALSE, warning=FALSE}
+# tmap::tmap_mode("view")
+# plot <- loadd(plot_ba)
+print(plot_list$tot_ba)
+```
+
+we then computed the 20th percentile of the distribution of cumulated burnt area, 
+and used it to classify tessels in High and Low intensity areas: 
+
+```{r threshcomp, echo=FALSE, message=FALSE, warning=FALSE}
+# tmap::tmap_mode("view")
+# plot <- loadd(plot_ba)
+print(plot_list$plot_thresh)
+```
+```{r map_threshcomp, echo=FALSE, message=FALSE, warning=FALSE}
+tmap::tmap_mode("plot")
+# plot <- loadd(plot_ba)
+print(plot_list$plot_FI)
+```
+
+## Analysis of cardinality of the groups
+
+Information about Fire Intensity and length of continuous L8 serie for each tessel
+was joined in a single dataset to allow an analysis of cardinality of the different
+groups. 
+
+First of all, we computed the frequency histograms, for each biome as a whole: 
+
+```{r hist, echo=FALSE, message=FALSE, warning=FALSE, fig.height=8}
+print(plot_list$plot_hist)
+```
+
+, and divided as a function of intensity: 
+
+```{r hist_FI, echo=FALSE, fig.height=8, message=FALSE, warning=FALSE}
+print(plot_list$plot_hist_facet)
+```
+
+This shows clearly that in some biomes, the "High Intensity" tessels are very few, in particular for higher values of time seriers length. This can lead to problems when sampling. 
+
+To understand the relationship between cardinality of the different groups and 
+length of the continuous series, we finally computed the cumulated number of L8 tessels showing
+a continuous time series above a specified threshold. Also in this case, the analysiss 
+was done both for each biome as a whole:
+
+```{r count, echo=FALSE, message=FALSE, warning=FALSE, fig.height = 8}
+print(plot_list$plot_number_bar)
+```
+
+
+, and separatedly by High / Low fire intensities:
+
+
+```{r count_FI, echo=FALSE, fig.height=8, message=FALSE, warning=FALSE}
+print(plot_list$plot_number_bar_FI_L)
+print(plot_list$plot_number_bar_FI_H)
+```
+
+It is evident that for most biomes, the number of High Intensity tessels with a continuous lenght 
+above 50 days is really small.
+
+In the map below, you can see how the number and location of available tessels vary 
+as a function of biome and length of the considered continuous time serie. 
+
+
+```{r map_FI, echo=FALSE, fig.height=8, message=FALSE, warning=FALSE}
+tmap::tmap_mode("view")
+tmap::tmap_options(limits = c(facets.view = 12))
+plot_list$mapFI
+# tmap::tmap_mode("plot")
+```
+

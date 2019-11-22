@@ -1,0 +1,34 @@
+---
+title: "Report_sampling"
+author: "Lorenzo Busetto"
+date: "29/10/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+infile <- "../data/plots/data_16.RData"
+library(tmap)
+```
+
+# Report on processing for sampling L8 tessels
+
+This document is used to report results of processing focused on automatically
+sampling L8 tessels for fireCCI validation activities. 
+
+## Input data
+
+Data used are the results of the analysis done using the "plot_longseries.R"
+script. 
+
+```{r import, echo=FALSE, message=FALSE, warning=FALSE}
+load(infile)
+knitr::kable(in_data)
+```
+
+## Identification of the number of samples to take for each stratun (biome x 
+Fire Intensity)
+
+For each tessel, we first of all computed the total 2018 burnt area starting from 
+the fireCCI raster. 
+
