@@ -15,15 +15,15 @@ library(dplyr)
 library(ggplot2)
 library(data.table)
 
-in_datafile <- "data/plots/data_16.RData"
+in_datafile <- "data/results_sampling/data_16.RData"
 in_data     <- get(load(in_datafile))
-out_sampfile <- "data/plots/samp_16.RData"
+out_sampfile <- "data/results_sampling/samp_16.RData"
 min_lgt     <- 0
 sampling_ratio <- 5
 frac_limit <- 10
 # fix the seed to allow reproducibility - change this for a new
 # sampling
-set.seed(422)
+set.seed(42)
 
 # Remove tessels almost completely in water
 land_vector <- rnaturalearth::ne_download(scale    = 50,

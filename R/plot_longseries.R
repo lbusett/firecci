@@ -5,8 +5,8 @@ library(magrittr)
 lgt      <- 16
 year     <- 2018
 plot_list <- list()
-out_plotfile  <- "data/plots/plots_16.RData"
-out_datafile  <- "data/plots/data_16.RData"
+out_plotfile  <- "data/results_sampling/plots_16.RData"
+out_datafile  <- "data/results_sampling/data_16.RData"
 
 in_ba_file <- file.path(here::here(), ("data/burnt_area_L8_tessels.gpkg"))
 

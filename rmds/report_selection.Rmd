@@ -7,7 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-infile <- "../data/plots/data_16.RData"
+infile <- "../data/results_sampling/data_16.RData"
 library(tmap)
 ```
 
