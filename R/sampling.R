@@ -21,9 +21,9 @@ out_sampfile <- "data/results_sampling/samp_16.RData"
 min_lgt     <- 0
 sampling_ratio <- 5
 frac_limit <- 10
-# fix the seed to allow reproducibility - change this for a new
+# fix the seeds to allow reproducibility - change this for a new
 # sampling
-set.seed(42)
+myseeds <- c(1:14 * 17)
 
 # Remove tessels almost completely in water
 land_vector <- rnaturalearth::ne_download(scale    = 50,
@@ -123,8 +123,8 @@ sub_data <- in_data %>%
 
 # do the sampling for each group and regroup the rezsults at the end
 ind <- 1
-sampled_tessels <- list()
-myseeds <- c(1:14 * 46)
+sampled_list <- list()
+
 for (biome in unique(sub_data$biome_code)) {
     for (flev in (unique(sub_data$FI))) {
         n_samp <- nsamp_tbl %>%
@@ -134,12 +134,12 @@ for (biome in unique(sub_data$biome_code)) {
             dplyr::filter(biome_code == biome & FI == flev)
         set.seed(myseeds[ind])
         sample <- dplyr::sample_n(data_to_samp, n_samp)
-        sampled_tessels[[ind]] <- sample %>%
+        sampled_list[[ind]] <- sample %>%
             sf::st_cast("MULTIPOLYGON")
         ind <- ind + 1
     }
 }
-sampled_tessels <- data.table::rbindlist(sampled_tessels) %>%
+sampled_tessels <- data.table::rbindlist(sampled_list) %>%
     sf::st_as_sf()
 
 tmap::tmap_mode("view")
