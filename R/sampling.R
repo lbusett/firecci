@@ -124,6 +124,7 @@ sub_data <- in_data %>%
 # do the sampling for each group and regroup the rezsults at the end
 ind <- 1
 sampled_tessels <- list()
+myseeds <- c(1:14 * 46)
 for (biome in unique(sub_data$biome_code)) {
     for (flev in (unique(sub_data$FI))) {
         n_samp <- nsamp_tbl %>%
@@ -131,6 +132,7 @@ for (biome in unique(sub_data$biome_code)) {
             .[["nh"]]
         data_to_samp <- sub_data %>%
             dplyr::filter(biome_code == biome & FI == flev)
+        set.seed(myseeds[ind])
         sample <- dplyr::sample_n(data_to_samp, n_samp)
         sampled_tessels[[ind]] <- sample %>%
             sf::st_cast("MULTIPOLYGON")
