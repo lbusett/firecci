@@ -25,11 +25,12 @@ frac_limit <- 10
 # sampling
 myseeds <- c(1:14 * 17)
 
-# Remove tessels almost completely in water
+# Remove tessels almost completely in water (fractional land < 10%) ----
 land_vector <- rnaturalearth::ne_download(scale    = 50,
                                           type     = 'land',
                                           category = "physical") %>%
     sf::st_as_sf()
+land_vector <- sf::st_set_crs(land_vector, sf::st_crs(in_data))
 
 intersected <- in_data %>%
     dplyr::mutate(totarea = as.numeric(sf::st_area(.))) %>%
@@ -108,7 +109,7 @@ plot_ratios <- ggplot2::ggplot(out_lgt) +
     geom_hline(aes(yintercept = sampling_ratio), col = "red", linetype = "dashed")+
     geom_text(aes(x =150, y = 30, label = glue::glue("{nh} out of: {Nh}")), col = "blue")
 
-# Compute the minimum ts_length that guarantees a sampling ratio above
+# Compute the minimum ts_length that guarantees a sampling ratio above ----
 # sampling_ratio
 my_lgt <- out_lgt %>%
     dplyr::filter(ratio < sampling_ratio) %>%
@@ -117,11 +118,11 @@ my_lgt <- out_lgt %>%
 
 # Now subset based on sampling_ratio, and extract the sample:
 
-# subset based on computed min_length
+# subset based on computed min_length ----
 sub_data <- in_data %>%
     dplyr::filter(ts_length >= my_lgt$minlgt)
 
-# do the sampling for each group and regroup the rezsults at the end
+# do the sampling for each group and regroup the rezsults at the end ----
 ind <- 1
 sampled_list <- list()
 

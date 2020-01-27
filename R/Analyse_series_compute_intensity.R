@@ -1,12 +1,15 @@
 # Script to create plots of variability of long series as a function
 # of biome and "allowed hole length"
-#
+
 library(magrittr)
 lgt      <- 16
 year     <- 2018
 plot_list <- list()
 out_plotfile  <- "data/results_sampling/plots_16.RData"
 out_datafile  <- "data/results_sampling/data_16.RData"
+
+out_plotfile  <- "data/results_sampling/plots_16_tttt.RData"
+out_datafile  <- "data/results_sampling/data_16_tttt.RData"
 
 in_ba_file <- file.path(here::here(), ("data/burnt_area_L8_tessels.gpkg"))
 
@@ -35,6 +38,7 @@ names(seq_data) <- c("pathrow", "ts_length", "n_images", "cloudcov", "startdate"
 # join the two datasets and compute cumulate burnt areas columns
 
 in_data <- ba_data %>%
+    # Join with sequences and add infpo on Biome ----
     dplyr::left_join(sf::st_drop_geometry(seq_data)) %>%
     dplyr::mutate(biome_code = as.character(dplyr::recode_factor(biome_code ,"0" = "Other",
                                                                  "1" = "Trop. Forest",
@@ -50,13 +54,17 @@ in_data <- ba_data %>%
                                                                   "Savannas",
                                                                   "Trop. Forest",
                                                                   "Other"))) %>%
+    # sort for readability
     dplyr::mutate(lat = sf::st_coordinates(sf::st_geometry(sf::st_centroid(.)))[,2]) %>%
     dplyr::arrange(biome_code, ts_length) %>%
     dplyr::mutate(ts_length = ifelse(ts_length > 200, 200, ts_length)) %>%
+    # Compute cumulated burnt area by biome (on sequence) and normalize by ----
+    # total cumulated
     dplyr::group_by(biome_code) %>%
     dplyr::arrange(biome_code, tot_ba) %>%
     dplyr::mutate(cum_ba = cumsum(tot_ba)) %>%
     dplyr::mutate(norm_cum_ba = cum_ba / max(cum_ba)) %>%
+    # add the number of thiessen in biome and "posityion" along the sequence of cumulates ----
     dplyr::add_tally(name = "N") %>%
     dplyr::mutate("N_seq" = seq_along(biome_code)) %>%
     dplyr::ungroup() %>%
@@ -64,13 +72,16 @@ in_data <- ba_data %>%
     dplyr::select( dplyr::everything(), geom)
 
 
-# identify thresholds for distinction between high and low BA ----
+# identify thresholds for distinction between high and low BA ("position" and threshold ----
+# of area ----
 thresh_data <- in_data %>%
     dplyr::group_by(biome_code) %>%
     dplyr::summarize(thresh_pos = dplyr::first(which(norm_cum_ba > 0.2)),
                      thresh_ba  = tot_ba[dplyr::first(which(norm_cum_ba > 0.2))]) %>%
     sf::st_drop_geometry()
 
+# Join the dateaset with the thresholds, and assign FI on basis of tot_ba ----
+# above or below thresh_ba
 in_data <- in_data %>%
     dplyr::left_join(thresh_data) %>%
     dplyr::mutate(FI = ifelse(tot_ba > thresh_ba, "High", "Low")) %>%
