@@ -13,10 +13,10 @@
 #' @importFrom data.table rbindlist
 #'
 
-create_s2_tessel <- function(outdir) {
+create_s2_tessel_small <- function(outdir) {
     require(tmap)
     if (missing("outdir")) {
-        outdir <- file.path(system.file(package = "firecci"), "data/S2tessels")
+        outdir <- file.path(here::here(), "data/S2tessels_small/")
         dir.create(outdir)
     } else {
         if(dir.exists(dirname(outdir))) {
@@ -53,7 +53,7 @@ create_s2_tessel <- function(outdir) {
     pl_foot <- tm_shape(sub_fprints) + tm_borders(col = "darkgreen")
 
     sf::st_write(sub_fprints,
-                 file.path(here::here(), "data/S2tessels/AFRICA_S2_orbits.gpkg"),
+                 file.path(here::here(), "data/S2tessels_small/AFRICA_S2_orbits.gpkg"),
                  delete_layer = TRUE)
 
 
@@ -62,7 +62,7 @@ create_s2_tessel <- function(outdir) {
     int_tiles <- sf::st_filter(tiles, sub_fprints)
     afr_tiles <- sf::st_filter(int_tiles, africa)
     sf::st_write(afr_tiles,
-                 file.path(here::here(), "data/S2tessels/AFRICA_S2_tiles.gpkg"),
+                 file.path(here::here(), "data/S2tessels_small/AFRICA_S2_tiles.gpkg"),
                  delete_layer = TRUE)
 
     # Import S2 orbit tracks and subset over Africa ----
@@ -92,7 +92,7 @@ create_s2_tessel <- function(outdir) {
     # save ----
     sf::st_write(tracks,
                  file.path(here::here(),
-                           "data/S2tessels/AFRICA_S2_tracks.gpkg"),
+                           "data/S2tessels_small/AFRICA_S2_tracks.gpkg"),
                  delete_layer = TRUE)
 
     # sample points along tracks ----
@@ -123,7 +123,7 @@ create_s2_tessel <- function(outdir) {
     pl_points <- tm_shape(points) + tm_dots(size = 0.01)
 
     outfile <- file.path(here::here(),
-                         "data/S2tessels/AFRICA_S2_points.gpkg")
+                         "data/S2tessels_small/AFRICA_S2_points.gpkg")
     sf::st_write(points, outfile, delete_layer = TRUE)
 
     # Create tessels ----
@@ -132,8 +132,39 @@ create_s2_tessel <- function(outdir) {
     voronoi  <- sf::st_voronoi(points, envelope) %>%
         sf::st_cast() %>%
         sf::st_intersection(envelope)
+    voronoi <- voronoi %>%
+        sf::st_sf() %>%
+        dplyr::mutate(ID = 1:length(voronoi))
 
+    # now get a "meaningful ID". Use the TM row and the S2 orbit ----
+    # We derive them by bringing back the intersection points between
+    # L8 rows and S2 orbits, and joining the attributes
+    points_to_join <- sf::st_intersection(tracks, L8_lnestring) %>%
+        dplyr::select(orbit, l8row)
+    joined_pts_tbl <- voronoi %>%
+        sf::st_intersection(points_to_join) %>%
+        dplyr::arrange(ID) %>%
+        sf::st_drop_geometry()
 
+    voronoi <- voronoi %>%
+        dplyr::left_join(joined_pts_tbl, by = "ID") %>%
+        dplyr::mutate(ID_PR = paste(orbit, l8row, sep = "_")) %>%
+        dplyr::select(everything(), geometry)
+
+    # split tessels in two halves, to get "similar" area with L8 tessels ----
+    small_voronoi <- voronoi %>%
+        lwgeom::st_split(tracks) %>%
+        sf::st_collection_extract("POLYGON") %>%
+        dplyr::group_by(ID_PR) %>%
+        dplyr::mutate(n = letters[1:dplyr::n()]) %>%
+        dplyr::arrange(ID_PR) %>%
+        dplyr::ungroup() %>%
+        dplyr::mutate(ID_PR_small = paste(ID_PR, n, sep = "_")) %>%
+        dplyr::mutate(ID = 1:dplyr::n()) %>%
+        dplyr::mutate(area = sf::st_area(.)) %>%
+        dplyr::select(ID, area, orbit, l8row, ID_PR, ID_PR_small)
+
+    voronoi <- small_voronoi
     # remove voronois not intersecting land ----
 
     # create a new "africa" vector, after removing cabo verde
@@ -147,10 +178,10 @@ create_s2_tessel <- function(outdir) {
 
     # get intersecting tessels
     which_intersect_land <- sf::st_intersects(voronoi, africa_sub)
-    voronoi <- voronoi[which(lengths(which_intersect_land) != 0)]
+    voronoi <- voronoi[which(lengths(which_intersect_land) != 0), ]
     pl_voronoi <- tm_shape(voronoi) + tm_borders(col = "red")
     outfile <- file.path(here::here(),
-                         "data/S2tessels/AFRICA_S2_tessels_full.gpkg")
+                         "data/S2tessels_small/AFRICA_S2_tessels_small_full.gpkg")
     sf::st_write(voronoi, outfile, delete_layer = TRUE)
 
     # compute centroids of voronois, to be able to subset below 25°N
@@ -158,17 +189,13 @@ create_s2_tessel <- function(outdir) {
     # total area
     centroids <- sf::st_coordinates(sf::st_centroid(voronoi))
     which_cent_ok <- which(centroids[,2] < 25)
-    voronoi <- voronoi[which_cent_ok]
-    voronoi <- voronoi %>%
-        sf::st_sf() %>%
-        dplyr::mutate(ID = 1:length(which_cent_ok),
-                      area = as.numeric(sf::st_area(.)))
+    voronoi <- voronoi[which_cent_ok,]
 
     # remove tessels with a very small amount of land ----
     vor_w_fc <- voronoi %>%
         sf::st_intersection(africa_sub) %>%
         dplyr::group_by(ID) %>%
-        dplyr::summarize(area = first(area)) %>%
+        dplyr::summarise(area = first(area)) %>% #this "dissolves" the intersection by ID
         dplyr::mutate(area_int = sf::st_area(.)) %>%
         dplyr::mutate(fc = as.numeric(area_int / area))
     pl_vor_w_fc <- tm_shape(vor_w_fc) + tm_polygons(col = "fc", style = "fixed",
@@ -179,39 +206,26 @@ create_s2_tessel <- function(outdir) {
     voronoi_final  <- voronoi[which_above_10, ]
     voronoi_final$fc <- vor_w_fc$fc[which_above_10]
 
-    # now get a "meaningful ID". Use the TM row and the S2 orbit ----
-    # We derive them by bringing back the intersection points between
-    # L8 rows and S2 orbits, and joining the attributes
-    points_to_join <- sf::st_intersection(tracks, L8_lnestring) %>%
-        dplyr::select(orbit, l8row)
-    joined_pts_tbl <- voronoi_final %>%
-        sf::st_intersection(points_to_join) %>%
-        dplyr::arrange(ID) %>%
-        sf::st_drop_geometry() %>%
-        dplyr::select(-area, -fc)
-    voronoi_final <- voronoi_final %>%
-        dplyr::left_join(joined_pts_tbl, by = "ID") %>%
-        dplyr::mutate(ID_PR = paste(orbit, l8row, sep = "_")) %>%
-        dplyr::select(everything(), geometry)
-
     pl_voronoi_sub <- tm_shape(voronoi_final) + tm_borders(col = "red")
 
     # save the final tessels ----
     outfile <- file.path(here::here(),
-                         "data/S2tessels/AFRICA_S2_tessels.gpkg")
+                         "data/S2tessels_small/AFRICA_S2_tessels_small.gpkg")
     sf::st_write(voronoi_final, outfile, delete_layer = TRUE)
 
     #save to R object
     outfile <- file.path(here::here(),
-                         paste0("data/S2tessels/AFRICA_S2_tessels_", Sys.Date(), ".RData"))
+                         paste0("data/S2tessels_small/AFRICA_S2_tessels_small", Sys.Date(), ".RData"))
     save(pl_foot, pl_track, pl_points, pl_vor_w_fc, pl_voronoi, pl_voronoi_sub,
          voronoi_final, file = outfile)
 
     # Compute Burnt Area and Burnt Area fraction over tessels ----
     in_ba_file <- file.path(file.path(here::here(),
-                                     "data-raw/2018-Annual-ESACCI-L4_FIRE-BA-MODIS-fv5.1_km2.tif"))
-    in_tessels_file     <- file.path(here::here(), ("data/S2tessels/AFRICA_S2_tessels.gpkg"))
-    out_tessels_ba_file <- file.path(here::here(), ("data/S2tessels/AFRICA_S2_tessels_with_ba.gpkg"))
+                                      "data-raw/2018-Annual-ESACCI-L4_FIRE-BA-MODIS-fv5.1_km2.tif"))
+    in_tessels_file     <- file.path(here::here(),
+                                     "data/S2tessels_small/AFRICA_S2_tessels_small.gpkg")
+    out_tessels_ba_file <- file.path(here::here(),
+                                     "data/S2tessels_small/AFRICA_S2_tessels_small_with_ba.gpkg")
 
     intensity  = firecci::extract_intensity(
         in_ba_file,
@@ -241,15 +255,15 @@ create_s2_tessel <- function(outdir) {
         dplyr::ungroup()
 
     out_biome_file <- file.path(file.path(here::here(),
-                                      "data/olson_biomes_reshuffled.gpkg"))
+                                          "data/olson_biomes_reshuffled.gpkg"))
     sf::st_write(biomes, out_biome_file, delete_layer = TRUE)
     biome_file <- file.path(file.path(here::here(),
-                                       "data/olson_biomes_reshuffled.gpkg"))
+                                      "data/olson_biomes_reshuffled.gpkg"))
 
     biomes <- sf::st_read(biome_file) %>%
         dplyr::filter(!is.na(biome_name))
 
-    in_tessels <- sf::st_read(in_tessels_file)
+    in_tessels <- sf::st_read(out_tessels_ba_file)
 
     # intersect tessels with biome map ----
     int_biomes <- in_tessels %>%
@@ -258,28 +272,27 @@ create_s2_tessel <- function(outdir) {
 
     # for each tessel, get the biome with greater area ----
     int_biomes2 <- int_biomes %>%
-        dplyr::group_by(ID_PR, biome_name) %>%
+        dplyr::group_by(ID_PR_small, biome_name) %>%
         dplyr::mutate(lc_area = sum(as.numeric(int_area))) %>%
-        dplyr::group_by(ID_PR) %>%
-        dplyr::arrange(ID_PR) %>%
+        dplyr::group_by(ID_PR_small) %>%
+        dplyr::arrange(ID_PR_small) %>%
         dplyr::top_n(1, lc_area) %>%
         dplyr::ungroup() %>%
-        dplyr::select(ID, ID_PR, biome_name) %>%
+        dplyr::select(ID, ID_PR_small, biome_name) %>%
         sf::st_drop_geometry()
 
 
     tessels_with_biome <- in_tessels %>%
         dplyr::left_join(int_biomes2)  %>%
-        dplyr::select(1,4,5,6,7,fc)
+        dplyr::select(1,3,4,5,6,8,fc)
 
     if(dim(tessels_with_biome)[1] != dim(in_tessels)[1]) {
         stop("Something strange happened!")
     } else {
-        out_tessels_file <- file.path(here::here(), ("data/S2tessels/AFRICA_S2_tessels_ba_biome.gpkg"))
+        out_tessels_file <- file.path(here::here(),
+                                      "data/S2tessels_small/AFRICA_S2_tessels_small_ba_biome.gpkg")
         sf::st_write(tessels_with_biome, out_tessels_file, delete_dsn = TRUE)
     }
-
-
 
     # finally, create an associated file with 10*10 Km polygon over each tessels centroid ----
 
@@ -315,7 +328,7 @@ create_s2_tessel <- function(outdir) {
         sf::st_as_sf() %>%
         dplyr::select(-fc)
 
-    out_squares_file <- file.path(here::here(), ("data/S2tessels/AFRICA_S2_squares.gpkg"))
+    out_squares_file <- file.path(here::here(), ("data/S2tessels_small/AFRICA_S2_squares_smalltessels.gpkg"))
     sf::st_write(out_squares, out_squares_file, delete_dsn = TRUE)
 
     # old - based on fixed dist

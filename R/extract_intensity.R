@@ -36,7 +36,6 @@ extract_intensity <- function(in_ba_file,
     in_tess <- dplyr::mutate(in_tess,
                              tot_ba = as.numeric(NA))
     for (hex in seq_len(dim(in_tess)[1])) {
-        # for (hex in 1:100) {
         print(hex)
         test_ext <- raster::extract(in_ba,
                                     in_tess[hex,],
@@ -48,10 +47,22 @@ extract_intensity <- function(in_ba_file,
     }
 
     in_tess$tot_area <- as.numeric(sf::st_area(in_tess)) / 1000000
-    # in_tess$frac_ba <- as.numeric(in_tess$tot_ba / area)
-    in_tess <- in_tess %>%
-        dplyr::mutate(frac_ba = tot_ba / tot_area) %>%
-        dplyr::select(pathrow, biome_code, tot_ba, frac_ba, tot_area)
+
+    if ("pathrow" %in% names(in_tess)) {
+        in_tess <- in_tess %>%
+            dplyr::mutate(frac_ba = tot_ba / tot_area) %>%
+            dplyr::select(pathrow, biome_code, tot_ba, frac_ba, tot_area)
+    } else {
+        if (!"tile_id.1" %in% names(in_tess)) {
+            in_tess <- in_tess %>%
+                dplyr::mutate(frac_ba = tot_ba / tot_area) %>%
+                dplyr::select(ID, orbit, l8row, ID_PR, tot_ba, frac_ba, tot_area)
+        } else {
+            in_tess <- in_tess %>%
+                dplyr::mutate(frac_ba = tot_ba / tot_area) %>%
+                dplyr::select(tile_id, tot_ba, frac_ba, tot_area)
+        }
+    }
 
     if (!is.null(out_file)) {
         sf::st_write(in_tess, out_file, delete_layer = TRUE)
